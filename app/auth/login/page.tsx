@@ -1,23 +1,32 @@
 "use client";
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"; 
+import { Loader2, Eye, EyeOff, Moon, Sun } from "lucide-react"; 
 
 interface LoginProps {
   onLoginSuccess: () => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+  // Login logikasi uchun state-lar
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  const { setTheme } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +49,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         const token = data.token || `session_${Math.random().toString(36).substr(2, 9)}`;
         const role = data.role || "user";
 
-        // Cookie va LocalStorage-ga saqlash
         document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `role=${role}; path=/; max-age=86400; SameSite=Lax`;
         localStorage.setItem("token", token);
@@ -52,7 +60,6 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           console.error(err);
         }
 
-        // Home-ga yo'naltirish
         window.location.replace("/");
         return;
       }
@@ -66,13 +73,41 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-4 font-sans">
-      {/* Orqa fondagi yorug'lik effektlari */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0a0a0a] p-4 font-sans transition-colors duration-300">
+      
+      {/* --- DARK MODE TUGMASI (Login.tsx ichida) --- */}
+      <div className="absolute top-5 right-5 z-50">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="rounded-full bg-background/50 backdrop-blur-sm border-zinc-200 dark:border-zinc-800">
+              {/* Quyosh ikonkasining animatsiyasi */}
+              <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              {/* Oy ikonkasining animatsiyasi */}
+              <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Temani o'zgartirish</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              Light
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              Dark
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("system")}>
+              System
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {/* ------------------------------------------- */}
+
+      {/* Orqa fon effekti (faqat dark mode uchun) */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none hidden dark:block">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-zinc-800/20 blur-[120px] rounded-full"></div>
       </div>
 
-      <Card className="w-full max-w-[440px] bg-[#111111] border-zinc-800/50 text-white rounded-[2.5rem] shadow-2xl relative z-10 p-4 md:p-8">
+      <Card className="w-full max-w-[440px] bg-white dark:bg-[#111111] border-zinc-200 dark:border-zinc-800/50 text-zinc-950 dark:text-white rounded-[2.5rem] shadow-xl dark:shadow-2xl relative z-10 p-4 md:p-8 transition-colors duration-300">
         <CardHeader className="space-y-3 text-center pb-8">
           <CardTitle className="text-3xl font-bold tracking-tight">Xush kelibsiz 👋</CardTitle>
           <CardDescription className="text-zinc-500 text-sm font-medium">
@@ -83,14 +118,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-zinc-400 ml-1">
+              <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">
                 Email
               </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="Email kiriting"
-                className="h-12 bg-zinc-900/50 border-zinc-800 rounded-xl focus-visible:ring-zinc-700 text-zinc-200 placeholder:text-zinc-600"
+                className="h-12 bg-gray-50 border-zinc-200 focus-visible:ring-zinc-400 text-zinc-900 placeholder:text-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:focus-visible:ring-zinc-700 dark:text-zinc-200 dark:placeholder:text-zinc-600 rounded-xl transition-colors"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -98,7 +133,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-zinc-400 ml-1">
+              <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 ml-1">
                 Parol
               </Label>
               <div className="relative">
@@ -106,7 +141,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Parol kiriting"
-                  className="h-12 bg-zinc-900/50 border-zinc-800 rounded-xl focus-visible:ring-zinc-700 text-zinc-200 placeholder:text-zinc-600"
+                  className="h-12 bg-gray-50 border-zinc-200 focus-visible:ring-zinc-400 text-zinc-900 placeholder:text-zinc-400 dark:bg-zinc-900/50 dark:border-zinc-800 dark:focus-visible:ring-zinc-700 dark:text-zinc-200 dark:placeholder:text-zinc-600 rounded-xl transition-colors"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -114,7 +149,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-white transition-colors"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -122,7 +157,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             </div>
 
             {error && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium text-center">
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400 text-xs font-medium text-center transition-colors">
                 {error}
               </div>
             )}
@@ -130,7 +165,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-zinc-100 hover:bg-white text-black font-bold rounded-xl transition-all active:scale-[0.98] shadow-lg shadow-white/5"
+              className="w-full h-12 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-black font-bold rounded-xl transition-all active:scale-[0.98] shadow-lg dark:shadow-white/5"
             >
               {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

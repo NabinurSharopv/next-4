@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/header";
-import { ThemeProvider } from "@/components/theme-provider"; // 1. Providerni import qilish
+// import Header from "@/components/header";  <--- ESKI IMPORTNI O'CHIRING
+import HeaderControl from "@/components/HeaderControl"; // <--- YANGI IMPORTNI QO'SHING
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,19 +26,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // 2. suppressHydrationWarning qo'shish shart (next-themes xatolik bermasligi uchun)
     <html lang="en" suppressHydrationWarning> 
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* 3. ThemeProvider bilan o'rab chiqish */}
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <Header />
+          {/* ESKI <Header /> O'RNIGA SHUNI QO'YING: */}
+          <HeaderControl />
+          
           {children}
         </ThemeProvider>
       </body>
