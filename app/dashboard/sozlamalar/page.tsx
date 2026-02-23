@@ -5,7 +5,7 @@ export default function sozlamalarPage() {
       <p className="text-gray-600 dark:text-gray-400">sozlamalar sahifasi</p>
       
       <div className="mt-6 bg-white dark:bg-[#111111] p-4 rounded-lg shadow">
-        <p>Ma'lumotlar ro'yxati</p>
+        <p>Malumotlar royxati</p>
       </div>
     </div>
   );
