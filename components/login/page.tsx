@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, FormEvent } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,14 +12,13 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"; 
-import { Loader2, Eye, EyeOff, Moon, Sun } from "lucide-react"; 
+import { Loader2, Eye, EyeOff, Moon, Sun } from "lucide-react";   
 
 interface LoginProps {
   onLoginSuccess: () => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
-  // Login logikasi uchun state-lar
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,61 +27,63 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   
   const { setTheme } = useTheme();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+const handleSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL;
-      
-      const response = await fetch(`${API_URL}/api/auth/sign-in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+  try {
+    const response = await fetch('/api/auth/sign-in', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+      credentials: 'include',
+    });
 
+    if (response.status === 204) {
+      setTimeout(() => {
+        window.location.replace("/");
+      }, 500);
+      return;
+    }
+
+    // Agar response OK bo'lsa
+    if (response.ok) {
       const data = await response.json();
-      const isApiSuccess = data.message?.toLowerCase().includes("succses") || data.message?.toLowerCase().includes("success");
+      const token = data.token;
+      const role = data.role || "user";
 
-      if (response.ok || isApiSuccess) {
-        const token = data.token || `session_${Math.random().toString(36).substr(2, 9)}`;
-        const role = data.role || "user";
-
+      if (token) {
         document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
         document.cookie = `role=${role}; path=/; max-age=86400; SameSite=Lax`;
         localStorage.setItem("token", token);
         localStorage.setItem("user_role", role);
-
-        try {
-          onLoginSuccess();
-        } catch (err) {
-          console.error(err);
-        }
-
-        window.location.replace("/");
-        return;
       }
 
-      setError(data.message || "Email yoki parol noto'g'ri");
-    } catch (err) {
-      setError("Server bilan aloqa yo'q. Iltimos keyinroq urinib ko'ring.");
-    } finally {
-      setLoading(false);
+      window.location.replace("/");
+      return;
     }
-  };
+
+    // Xatolik
+    const data = await response.json().catch(() => ({}));
+    setError(data.message || "Email yoki parol noto'g'ri");
+    
+  } catch (err) {
+    setError("Server bilan aloqa yo'q");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0a0a0a] p-4 font-sans transition-colors duration-300">
       
-      {/* --- DARK MODE TUGMASI (Login.tsx ichida) --- */}
+      {/* DARK MODE TUGMASI */}
       <div className="absolute top-5 right-5 z-50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="icon" className="rounded-full bg-background/50 backdrop-blur-sm border-zinc-200 dark:border-zinc-800">
-              {/* Quyosh ikonkasining animatsiyasi */}
               <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              {/* Oy ikonkasining animatsiyasi */}
               <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               <span className="sr-only">Temani o'zgartirish</span>
             </Button>
@@ -94,15 +95,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <DropdownMenuItem onClick={() => setTheme("dark")}>
               Dark
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("system")}>
-              System
-            </DropdownMenuItem>
+          
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {/* ------------------------------------------- */}
 
-      {/* Orqa fon effekti (faqat dark mode uchun) */}
+      {/* Orqa fon effekti */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none hidden dark:block">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-zinc-800/20 blur-[120px] rounded-full"></div>
       </div>

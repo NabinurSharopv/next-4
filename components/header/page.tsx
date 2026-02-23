@@ -10,7 +10,6 @@ const Header = () => {
           <Link href="/" className="text-neutral-700 dark:text-neutral-200 hover:text-blue-600 transition">Home</Link>
           <Link href="/about" className="text-neutral-700 dark:text-neutral-200 hover:text-blue-600 transition">About</Link>
           <Link href="/contact" className="text-neutral-700 dark:text-neutral-200 hover:text-blue-600 transition">Contact</Link>
-          <Link href="/login" className="text-neutral-700 dark:text-neutral-200 hover:text-blue-600 transition">Login</Link>
         </nav>
       </div>
     </header>
