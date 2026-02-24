@@ -1,4 +1,4 @@
-import Header from "@/components/header/page"; // Oddiy Headeringiz
+// import Header from "@/components/header/page"; 
 
 export default function MainLayout({
   children,
@@ -7,7 +7,7 @@ export default function MainLayout({
 }) {
   return (
     <>
-      <Header />
+      {/* <Header /> */}
       <main>{children}</main>
     </>
   );

@@ -23,7 +23,6 @@ interface Group {
   disable?: boolean;
   students?: any[];
 }
-
 interface Teacher {
   _id: string;
   first_name: string;

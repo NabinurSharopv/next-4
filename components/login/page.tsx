@@ -1,17 +1,11 @@
 "use client";
 
-import React, { useState, FormEvent } from "react";
+import React, { useState, FormEvent, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"; 
 import { Loader2, Eye, EyeOff, Moon, Sun } from "lucide-react";   
 
 interface LoginProps {
@@ -24,81 +18,90 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [mounted, setMounted] = useState(false);
   
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
-const handleSubmit = async (e: FormEvent) => {
-  e.preventDefault();
-  setError("");
-  setLoading(true);
+  // Mounted tekshiruvi (hydration xatoligi uchun)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  try {
-    const response = await fetch('/api/auth/sign-in', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-      credentials: 'include',
-    });
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-    if (response.status === 204) {
-      setTimeout(() => {
-        window.location.replace("/");
-      }, 500);
-      return;
-    }
+    try {
+      const response = await fetch('/api/auth/sign-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      });
 
-    // Agar response OK bo'lsa
-    if (response.ok) {
-      const data = await response.json();
-      const token = data.token;
-      const role = data.role || "user";
-
-      if (token) {
-        document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
-        document.cookie = `role=${role}; path=/; max-age=86400; SameSite=Lax`;
-        localStorage.setItem("token", token);
-        localStorage.setItem("user_role", role);
+      if (response.status === 204) {
+        setTimeout(() => {
+          window.location.replace("/");
+        }, 500);
+        return;
       }
 
-      window.location.replace("/");
-      return;
-    }
+      if (response.ok) {
+        const data = await response.json();
+        const token = data.token;
+        const role = data.role || "user";
 
-    // Xatolik
-    const data = await response.json().catch(() => ({}));
-    setError(data.message || "Email yoki parol noto'g'ri");
-    
-  } catch (err) {
-    setError("Server bilan aloqa yo'q");
-  } finally {
-    setLoading(false);
+        if (token) {
+          document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
+          document.cookie = `role=${role}; path=/; max-age=86400; SameSite=Lax`;
+          localStorage.setItem("token", token);
+          localStorage.setItem("user_role", role);
+        }
+
+        window.location.replace("/");
+        return;
+      }
+
+      const data = await response.json().catch(() => ({}));
+      setError(data.message || "Email yoki parol noto'g'ri");
+      
+    } catch (err) {
+      setError("Server bilan aloqa yo'q");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Dark mode toggle funksiyasi - bir bosgida o'zgaradi
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  // Mounted bo'lmaganda icon ko'rsatmaslik
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0a0a0a] p-4">
+        <div className="w-full max-w-[440px] h-[500px] animate-pulse bg-gray-200 dark:bg-zinc-800 rounded-[2.5rem]" />
+      </div>
+    );
   }
-};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0a0a0a] p-4 font-sans transition-colors duration-300">
       
-      {/* DARK MODE TUGMASI */}
-      <div className="absolute top-5 right-5 z-50">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="rounded-full bg-background/50 backdrop-blur-sm border-zinc-200 dark:border-zinc-800">
-              <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Temani o'zgartirish</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setTheme("light")}>
-              Light
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark")}>
-              Dark
-            </DropdownMenuItem>
-          
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {/* DARK MODE TUGMASI - BIR BOSGINDA O'ZGARADI */}
+      <button
+        onClick={toggleTheme}
+        className="absolute top-5 right-5 z-50 p-2.5 rounded-full bg-white dark:bg-[#111111] border border-zinc-200 dark:border-zinc-800 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-110 active:scale-95"
+        aria-label="Toggle theme"
+      >
+        {theme === "dark" ? (
+          <Sun className="h-5 w-5 text-yellow-500" />
+        ) : (
+          <Moon className="h-5 w-5 text-zinc-700" />
+        )}
+      </button>
 
       {/* Orqa fon effekti */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none hidden dark:block">

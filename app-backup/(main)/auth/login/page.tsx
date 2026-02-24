@@ -12,5 +12,5 @@ export default function AuthLoginPage() {
     router.push("/");
   };
 
-  return <Login onLoginSuccess={handleLoginSuccess} />; // <-- return qilish kerak!
+  return <Login onLoginSuccess={handleLoginSuccess} />;
 }
