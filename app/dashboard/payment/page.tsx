@@ -44,12 +44,10 @@ function getCookie(name: string): string | undefined {
     ?.split("=")[1];
 }
 
-// 🟢 MongoDB ID tekshirish
 const isValidObjectId = (id: string): boolean => {
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 
-// 🟢 YANGI TO'LOV QO'SHISH MODALI (DEBUG VERSION)
 function AddPaymentModal({ isOpen, onClose, onSuccess }: any) {
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
@@ -74,7 +72,6 @@ function AddPaymentModal({ isOpen, onClose, onSuccess }: any) {
 
   const API_BASE_URL = "https://admin-crm.onrender.com/api";
 
-  // Studentlarni yuklash
 const fetchStudents = async () => {
   try {
     const token = getCookie("token");
@@ -102,7 +99,6 @@ const fetchStudents = async () => {
   }
 };
 
-// Guruhlarni yuklash
 const fetchGroups = async () => {
   try {
     const token = getCookie("token");
@@ -138,7 +134,6 @@ const fetchGroups = async () => {
     }
   }, [isOpen]);
 
-  // Click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -156,7 +151,6 @@ const fetchGroups = async () => {
   if (!isOpen) return null;
 
   const handleAddPayment = async () => {
-    // 1. Barcha maydonlarni tekshirish
     const errors = [];
     if (!formData.student_id) errors.push("Student tanlanmagan");
     if (!formData.group_id) errors.push("Guruh tanlanmagan");
@@ -169,7 +163,6 @@ const fetchGroups = async () => {
       return;
     }
 
-    // 2. ID formatini tekshirish
     if (!isValidObjectId(formData.student_id)) {
       toast.error(`Student ID noto'g'ri format: ${formData.student_id}`);
       console.error("❌ Student ID xato:", formData.student_id);
@@ -192,7 +185,6 @@ const fetchGroups = async () => {
         return;
       }
 
-      // 3. Yuboriladigan ma'lumotlar
       const requestBody = {
         student_id: formData.student_id.trim(),
         group_id: formData.group_id.trim(),
@@ -212,7 +204,6 @@ const fetchGroups = async () => {
 
       setDebug({ request: requestBody });
 
-      // 4. So'rov yuborish
       const response = await fetch(`${API_BASE_URL}/payment/payment-student`, {
         method: "POST",
         headers: {
@@ -240,7 +231,6 @@ const fetchGroups = async () => {
 
       toast.success(`✅ To'lov muvaffaqiyatli qo'shildi!`);
       
-      // Formani tozalash
       setFormData({
         student_id: "",
         student_name: "",
@@ -266,7 +256,6 @@ const fetchGroups = async () => {
     }
   };
 
-  // Student tanlanganda
   const handleSelectStudent = (student: Student) => {
     console.log("✅ Tanlangan student:", {
       _id: student._id,
@@ -286,7 +275,6 @@ const fetchGroups = async () => {
     toast.success(`${student.first_name} ${student.last_name} tanlandi`);
   };
 
-  // Guruh tanlanganda
   const handleSelectGroup = (group: Group) => {
     console.log("✅ Tanlangan guruh:", {
       _id: group._id,
@@ -306,7 +294,6 @@ const fetchGroups = async () => {
     toast.success(`${group.name} guruhi tanlandi`);
   };
 
-  // Studentni o'chirish
   const handleClearStudent = () => {
     setFormData({
       ...formData,
@@ -316,7 +303,6 @@ const fetchGroups = async () => {
     });
   };
 
-  // Guruhni o'chirish
   const handleClearGroup = () => {
     setFormData({
       ...formData,
@@ -326,13 +312,11 @@ const fetchGroups = async () => {
     });
   };
 
-  // Filterlangan studentlar
   const filteredStudents = students.filter(s => 
     `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchStudent.toLowerCase()) ||
     s.phone?.includes(searchStudent)
   );
 
-  // Filterlangan guruhlar
   const filteredGroups = groups.filter(g => 
     g.name?.toLowerCase().includes(searchGroup.toLowerCase())
   );
@@ -352,7 +336,6 @@ const fetchGroups = async () => {
         </div>
 
         <div className="p-6 space-y-6">
-          {/* DEBUG PANEL */}
           {Object.keys(debug).length > 0 && (
             <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg font-mono text-xs">
               <pre>{JSON.stringify(debug, null, 2)}</pre>

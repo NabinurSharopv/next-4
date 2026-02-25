@@ -1,4 +1,3 @@
-// app/api/auth/sign-in/route.ts
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -6,7 +5,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log("📤 Yuborilayotgan ma'lumot:", body);
     
-    // Backendga so'rov yuborish
     const response = await fetch('https://admin-crm.onrender.com/api/auth/sign-in', {
       method: 'POST',
       headers: { 
@@ -16,14 +14,14 @@ export async function POST(request: Request) {
     });
 
     const data = await response.json();
+
+    
     console.log("📥 Backend javobi:", data);
     
-    // TOKEN VA ROLE NI COOKIE'GA SAQLASH
     if (data.data?.token) {
       const token = data.data.token;
       const role = data.data.role || "user";
       
-      // Cookie'larni o'rnatish
       const nextResponse = NextResponse.json(data, { status: response.status });
       
       nextResponse.cookies.set({
@@ -32,7 +30,7 @@ export async function POST(request: Request) {
         path: '/',
         maxAge: 60 * 60 * 24, // 1 kun
         sameSite: 'lax',
-        httpOnly: false, // frontend JS orqali o'qish uchun
+        httpOnly: false, 
       });
       
       nextResponse.cookies.set({

@@ -1,33 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { X, UserPlus, MoreHorizontal, Clock, Calendar, CheckCircle } from "lucide-react";
-import toast from "react-hot-toast";
-
-interface Group {
-  id?: number | string;
-  _id?: string;
-  name: string;
-  teacher: {
-    _id: string;
-    first_name: string;
-    last_name: string;
-  } | string;
-  students_count?: number;
-  started_group?: string;
-  end_group?: string;
-  course?: string;
-  status?: string;
-  price?: number;
-  is_deleted?: boolean;
-  disable?: boolean;
-  students?: any[];
-}
-interface Teacher {
-  _id: string;
-  first_name: string;
-  last_name: string;
-}
+import { X, UserPlus, MoreHorizontal, Clock, Calendar, CheckCircle, Loader2 } from "lucide-react";
+import { 
+  useGroups, 
+  useTeachers, 
+  useCreateGroup, 
+  useEndGroup,
+  type Group,
+  type Teacher 
+} from "@/hooks/useGroup";
 
 function getCookie(name: string): string | undefined {
   return document.cookie
@@ -37,11 +19,6 @@ function getCookie(name: string): string | undefined {
 }
 
 export default function GroupsPage() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
   // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"add" | "setEndDate" | null>(null);
@@ -58,7 +35,24 @@ export default function GroupsPage() {
     end_date: "",
   });
 
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
+  // TanStack Query hooks
+  const { 
+    data: groups = [], 
+    isLoading: groupsLoading, 
+    error: groupsError,
+    refetch: refetchGroups
+  } = useGroups();
+  
+  const { 
+    data: teachers = [], 
+    isLoading: teachersLoading 
+  } = useTeachers();
+  
+  const createGroup = useCreateGroup();
+  const endGroup = useEndGroup();
+
+  const isLoading = groupsLoading || teachersLoading;
+  const isPending = createGroup.isPending || endGroup.isPending;
 
   // Tashqariga bosilganda menyuni yopish
   useEffect(() => {
@@ -69,75 +63,6 @@ export default function GroupsPage() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Guruhlarni yuklash
-  const fetchGroups = async (showToast = false) => {
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        setError("Token topilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/group/get-all-group`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.status === 401 || response.status === 403) {
-        setError("Ruxsat berilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      if (!response.ok) throw new Error(data.message || "Ma'lumotlarni olishda xatolik");
-
-      let groupsData = data.data || data;
-      setGroups(groupsData);
-      
-      if (showToast) {
-        toast.success("Ma'lumotlar yangilandi!");
-      }
-    } catch (err: any) {
-      setError(err.message || "Serverga ulanishda xatolik");
-      toast.error(err.message || "Serverga ulanishda xatolik");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Ustozlarni yuklash
-  const fetchTeachers = async () => {
-    try {
-      const token = getCookie("token");
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/teacher/get-all-teachers`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      const result = await response.json();
-      
-      if (result?.data && Array.isArray(result.data)) {
-        setTeachers(result.data);
-      } else if (Array.isArray(result)) {
-        setTeachers(result);
-      }
-    } catch (error) {
-      console.error("Ustozlarni yuklashda xatolik:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchGroups();
-    fetchTeachers();
   }, []);
 
   // Modal funksiyalari
@@ -185,107 +110,34 @@ export default function GroupsPage() {
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-      
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      
-      const requestBody = {
-        _id: targetId,
-        date: dateStr,
-      };
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
+    endGroup.mutate({
+      _id: targetId as string,
+      date: dateStr,
+    });
 
-      console.log("📤 Guruhni tugatish so'rovi:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/group/edit-end-group`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("📥 Server javobi:", data);
-
-      if (!response.ok) {
-        throw new Error(data.message || `Xatolik: ${response.status}`);
-      }
-
-      setOpenMenuId(null);
-      toast.success(`"${group.name}" guruhi muvaffaqiyatli tugatildi!`, {
-        duration: 3000,
-        icon: "✅",
-      });
-      
-      await fetchGroups(false);
-      
-    } catch (err: any) {
-      console.error("❌ Xatolik:", err);
-      toast.error(err.message || "Guruhni tugatishda xatolik yuz berdi!");
-    }
+    setOpenMenuId(null);
   };
 
-  // 🟢 YANGI GURUH QO'SHISH (COURSE_ID BILAN)
+  // YANGI GURUH QO'SHISH
   const handleSaveAdd = async () => {
     if (!form.teacher_id || !form.started_group) {
       toast.error("Ustoz va boshlanish vaqtini to'ldiring!");
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-      
-      // 🟢 MUHIM: course_id qo'shildi!
-      const requestBody = {
-        teacher: form.teacher_id,
-        started_group: new Date(form.started_group).toISOString(),
-        course_id: "681dcb7444fa70421ae9fb9d", // Postmandagi course_id
-      };
+    createGroup.mutate({
+      teacher: form.teacher_id,
+      started_group: new Date(form.started_group).toISOString(),
+      course_id: "681dcb7444fa70421ae9fb9d", // Postmandagi course_id
+    });
 
-      console.log("📤 Yuborilayotgan ma'lumotlar:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/group/create-group`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("📥 Server javobi:", data);
-      
-      if (!response.ok) {
-        throw new Error(data.message || `Xatolik: ${response.status}`);
-      }
-
-      setIsModalOpen(false);
-      toast.success(`Yangi guruh muvaffaqiyatli qo'shildi!`, {
-        duration: 3000,
-        icon: "🎉",
-      });
-      
-      await fetchGroups(false);
-      
-    } catch (err: any) {
-      console.error("❌ Xatolik:", err);
-      toast.error(err.message || "Guruh qo'shishda xatolik yuz berdi!");
-    }
+    setIsModalOpen(false);
   };
 
   // TUGASH VAQTINI BELGILASH (FAQAT SANA)
@@ -303,52 +155,12 @@ export default function GroupsPage() {
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-      
-      const requestBody = {
-        _id: targetId,
-        date: form.end_date,
-      };
+    endGroup.mutate({
+      _id: targetId as string,
+      date: form.end_date,
+    });
 
-      console.log("📤 Tugash vaqtini belgilash so'rovi:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/group/edit-end-group`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("📥 Server javobi:", data);
-
-      if (!response.ok) {
-        throw new Error(data.message || `Xatolik: ${response.status}`);
-      }
-
-      setIsModalOpen(false);
-      
-      const [year, month, day] = form.end_date.split('-');
-      const formattedDate = `${month}/${day}/${year}`;
-      
-      toast.success(`"${selectedGroup.name}" guruhi uchun tugash sanasi ${formattedDate} belgilandi!`, {
-        duration: 3000,
-        icon: "✅",
-      });
-      
-      await fetchGroups(false);
-      
-    } catch (err: any) {
-      console.error("❌ Xatolik:", err);
-      toast.error(err.message || "Tugash vaqtini belgilashda xatolik yuz berdi!");
-    }
+    setIsModalOpen(false);
   };
 
   // Vaqtni formatlash
@@ -383,23 +195,24 @@ export default function GroupsPage() {
     return teacher;
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+        <p className="text-gray-500 dark:text-gray-400">Guruhlar yuklanmoqda...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (groupsError) {
     return (
       <div className="text-center text-red-600 dark:text-red-400 p-4">
-        <p>Xatolik: {error}</p>
+        <p>Xatolik: {groupsError.message}</p>
         <button 
-          onClick={() => window.location.reload()} 
-          className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          onClick={() => refetchGroups()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          Qayta yuklash
+          Qayta urinish
         </button>
       </div>
     );
@@ -409,10 +222,16 @@ export default function GroupsPage() {
     <div className="max-w-7xl mx-auto p-4">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Guruhlar</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Guruhlar</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Jami {groups.length} ta guruh
+          </p>
+        </div>
         <button
           onClick={handleAddClick}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm"
+          disabled={isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm disabled:opacity-50"
         >
           <UserPlus className="w-4 h-4" />
           Yangi guruh
@@ -442,64 +261,70 @@ export default function GroupsPage() {
                   </td>
                 </tr>
               ) : (
-                groups.map((group, index) => (
-                  <tr
-                    key={group.id || group._id || index}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {group.name || "—"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {getTeacherName(group.teacher)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {group.students?.length || 0}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(group.started_group)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(group.end_group)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
-                      <button
-                        onClick={() => setOpenMenuId(openMenuId === (group.id || group._id) ? null : (group.id || group._id))}
-                        className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-
-                      {openMenuId === (group.id || group._id) && (
-                        <div
-                          ref={menuRef}
-                          className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-50 py-1"
+                groups.map((group, index) => {
+                  const groupId = group.id || group._id;
+                  return (
+                    <tr
+                      key={groupId || index}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {group.name || "—"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {getTeacherName(group.teacher)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {group.students?.length || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(group.started_group)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(group.end_group)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                        <button
+                          onClick={() => setOpenMenuId(openMenuId === groupId ? null : groupId)}
+                          className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          disabled={isPending}
                         >
-                          <button
-                            onClick={() => handleSetEndDateClick(group)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+
+                        {openMenuId === groupId && (
+                          <div
+                            ref={menuRef}
+                            className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-50 py-1"
                           >
-                            <Clock className="w-4 h-4" />
-                            Tugash vaqtini belgilash
-                          </button>
-                          
-                          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                          
-                          <button
-                            onClick={() => handleEndGroupNow(group)}
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            <span className="font-medium">Guruhni hozir tugatish</span>
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                            <button
+                              onClick={() => handleSetEndDateClick(group)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                              disabled={isPending}
+                            >
+                              <Clock className="w-4 h-4" />
+                              Tugash vaqtini belgilash
+                            </button>
+                            
+                            <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                            
+                            <button
+                              onClick={() => handleEndGroupNow(group)}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                              disabled={isPending}
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              <span className="font-medium">Guruhni hozir tugatish</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -515,6 +340,7 @@ export default function GroupsPage() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                disabled={isPending}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -528,6 +354,7 @@ export default function GroupsPage() {
                     onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     required
+                    disabled={isPending || teachersLoading}
                   >
                     <option value="">Ustozni tanlang</option>
                     {teachers.map((teacher) => (
@@ -546,6 +373,7 @@ export default function GroupsPage() {
                     onChange={(e) => setForm({ ...form, started_group: e.target.value })}
                     className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     required
+                    disabled={isPending}
                   />
                 </div>
                 
@@ -559,13 +387,16 @@ export default function GroupsPage() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all"
+                disabled={isPending}
               >
                 Bekor qilish
               </button>
               <button
                 onClick={handleSaveAdd}
-                className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all"
+                disabled={isPending}
+                className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50"
               >
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 Qo'shish
               </button>
             </div>
@@ -582,6 +413,7 @@ export default function GroupsPage() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                disabled={isPending}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -598,6 +430,7 @@ export default function GroupsPage() {
                   onChange={(e) => setForm({ ...form, end_date: e.target.value })}
                   className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   required
+                  disabled={isPending}
                 />
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-center gap-1">
                   <Clock className="w-3 h-3" />
@@ -609,13 +442,16 @@ export default function GroupsPage() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all"
+                disabled={isPending}
               >
                 Bekor qilish
               </button>
               <button
                 onClick={handleSaveEndDate}
-                className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all"
+                disabled={isPending}
+                className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all flex items-center gap-2 disabled:opacity-50"
               >
+                {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 Belgilash
               </button>
             </div>

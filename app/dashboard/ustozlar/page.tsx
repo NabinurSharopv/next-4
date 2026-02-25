@@ -1,35 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Trash2, X, Search, UserPlus, RefreshCw, MoreHorizontal, Info } from "lucide-react";
-import toast from "react-hot-toast";
-
-interface Teacher {
-  id?: number | string;
-  _id?: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone?: string;
-  status: string;
-}
-
-interface Course {
-  _id: string;
-  name: {
-    _id: string;
-    name: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-  description: string;
-  duration: string;
-  price: number;
-  is_freeze: boolean;
-  createdAt: string;
-  updatedAt: string;
-  __v: number;
-}
+import { useState, useRef, useEffect } from "react";
+import { Trash2, X, Search, UserPlus, RefreshCw, MoreHorizontal, Info, Loader2 } from "lucide-react";
+import { 
+  useTeachers, 
+  useCourses, 
+  useCreateTeacher, 
+  useDeleteTeacher, 
+  useReturnTeacher,
+  type Teacher,
+  type Course
+} from "@/hooks/useTeacher";
 
 function getCookie(name: string): string | undefined {
   return document.cookie
@@ -39,26 +20,16 @@ function getCookie(name: string): string | undefined {
 }
 
 export default function TeachersPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Filter va qidiruv
   const [statusFilter, setStatusFilter] = useState<string>("Hammasi");
   const [searchQuery, setSearchQuery] = useState<string>("");
   
-  // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"add" | "delete" | "return" | "info" | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   
-  // Dropdown menyu uchun
   const [openMenuId, setOpenMenuId] = useState<string | number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
-  // Form
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -69,7 +40,25 @@ export default function TeachersPage() {
     course_id: "",
   });
 
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
+  // TanStack Query hooks
+  const { 
+    data: teachers = [], 
+    isLoading: teachersLoading, 
+    error: teachersError,
+    refetch: refetchTeachers
+  } = useTeachers();
+  
+  const { 
+    data: courses = [], 
+    isLoading: coursesLoading 
+  } = useCourses();
+  
+  const createTeacher = useCreateTeacher();
+  const deleteTeacher = useDeleteTeacher();
+  const returnTeacher = useReturnTeacher();
+
+  const isLoading = teachersLoading || coursesLoading;
+  const isPending = createTeacher.isPending || deleteTeacher.isPending || returnTeacher.isPending;
 
   // Tashqariga bosilganda menyuni yopish
   useEffect(() => {
@@ -82,108 +71,25 @@ export default function TeachersPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Kurslarni yuklash
-  const fetchCourses = async () => {
-    try {
-      const token = getCookie("token");
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/group/search-course`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      const result = await response.json();
-      console.log("Kurslar javobi:", result);
-      
-      if (result?.data && Array.isArray(result.data)) {
-        setCourses(result.data);
-        console.log("Kurslar:", result.data);
-      } else {
-        setCourses([]);
-        console.error("Kurslar formati noto'g'ri:", result);
-      }
-    } catch (error) {
-      console.error("Kurslarni yuklashda xatolik:", error);
-      setCourses([]);
-    }
-  };
-
-  // Ustozlarni yuklash
-  const fetchTeachers = async (showToast = false) => {
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        setError("Token topilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      console.log("📡 Ma'lumotlar yuklanmoqda...");
-
-      const response = await fetch(`${API_BASE_URL}/teacher/get-all-teachers`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      console.log("📦 Yuklangan ma'lumotlar:", data);
-
-      if (response.status === 401 || response.status === 403) {
-        setError("Ruxsat berilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      if (!response.ok) throw new Error(data.message || "Ma'lumotlarni olishda xatolik");
-
-      const teachersData = data.data || data;
-      console.log("👨‍🏫 Ustozlar ro'yxati:", teachersData);
-      
-      setTeachers(teachersData);
-      setFilteredTeachers(teachersData);
-      
-      if (showToast) {
-        toast.success("Ma'lumotlar yangilandi!", {
-          duration: 2000,
-          icon: "✅",
-        });
-      }
-    } catch (err: any) {
-      setError(err.message || "Serverga ulanishda xatolik");
-      toast.error(err.message || "Serverga ulanishda xatolik");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTeachers();
-    fetchCourses();
-  }, []);
-
   // Filter va qidiruv
-  useEffect(() => {
-    let result = teachers;
+  const filteredTeachers = teachers.filter((teacher) => {
+    const matchesStatus = statusFilter === "Hammasi" || 
+      teacher.status.toLowerCase() === statusFilter.toLowerCase();
+    
+    const matchesSearch = searchQuery === "" || 
+      teacher.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      teacher.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      teacher.email.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesStatus && matchesSearch;
+  });
 
-    if (statusFilter !== "Hammasi") {
-      result = result.filter((teacher) => teacher.status.toLowerCase() === statusFilter.toLowerCase());
-    }
-
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (teacher) =>
-          teacher.first_name.toLowerCase().includes(query) ||
-          teacher.last_name.toLowerCase().includes(query) ||
-          teacher.email.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredTeachers(result);
-  }, [statusFilter, searchQuery, teachers]);
+  // Kurs nomini olish
+  const getCourseName = (course: Course): string => {
+    if (!course.name) return "Kurs";
+    if (typeof course.name === 'string') return course.name;
+    return course.name?.name || "Kurs";
+  };
 
   // Modal funksiyalari
   const handleAddClick = () => {
@@ -239,98 +145,18 @@ export default function TeachersPage() {
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      
-      const requestBody = {
-        first_name: form.first_name,
-        last_name: form.last_name,
-        email: form.email,
-        password: form.password,
-        phone: form.phone,
-        course_id: form.course_id,
-        work_date: new Date().toISOString().split("T")[0],
-      };
-
-      console.log("Yuborilayotgan ma'lumotlar:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/teacher/create-teacher`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("Server javobi:", data);
-      
-      if (!response.ok) throw new Error(data.message || "Qo'shishda xatolik!");
-
-      setIsModalOpen(false);
-      toast.success("Yangi ustoz muvaffaqiyatli qo'shildi!", {
-        duration: 3000,
-        icon: "🎉",
-      });
-      fetchTeachers(true);
-    } catch (err: any) {
-      console.error("Xatolik detallari:", err);
-      toast.error(err.message);
-    }
-  };
-
-// ISHGA QAYTARISH
-const handleReturn = async () => {
-  if (!selectedTeacher) return;
-  const targetId = selectedTeacher.id || selectedTeacher._id;
-  if (!targetId) return toast.error("Ustoz ID topilmadi!");
-
-  try {
-    const token = getCookie("token");
-    
-    const requestBody = {
-      _id: targetId,  // _id ishlatish kerak
-    };
-
-    console.log("Ishga qaytarish ma'lumotlari:", requestBody);
-
-    const response = await fetch(`${API_BASE_URL}/teacher/return-teacher`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(requestBody),
+    createTeacher.mutate({
+      first_name: form.first_name,
+      last_name: form.last_name,
+      email: form.email,
+      password: form.password,
+      phone: form.phone,
+      course_id: form.course_id,
+      work_date: new Date().toISOString().split("T")[0],
     });
 
-    const responseText = await response.text();
-    console.log("Response status:", response.status);
-    console.log("Response text:", responseText);
-
-    if (response.ok) {
-      setIsModalOpen(false);
-      toast.success("Ustoz muvaffaqiyatli ishga qaytarildi!", {
-        duration: 3000,
-        icon: "🔄",
-      });
-      await fetchTeachers(true);
-    } else {
-      const errorData = JSON.parse(responseText);
-      
-      if (errorData.message === "Xodim allaqachon ishlamoqda") {
-        toast.error("Bu ustoz allaqachon faol holatda!");
-        setIsModalOpen(false);
-        await fetchTeachers(true);
-      } else {
-        throw new Error(errorData.message || "Ishga qaytarish xatosi!");
-      }
-    }
-  } catch (err: any) {
-    console.error("Xatolik:", err);
-    toast.error(err.message);
-  }
-};
+    setIsModalOpen(false);
+  };
 
   // O'CHIRISHNI TASDIQLASH
   const handleConfirmDelete = async () => {
@@ -338,41 +164,23 @@ const handleReturn = async () => {
     const targetId = selectedTeacher.id || selectedTeacher._id;
     if (!targetId) return toast.error("Ustoz ID topilmadi!");
 
-    try {
-      const token = getCookie("token");
+    deleteTeacher.mutate(targetId as string);
+    setIsModalOpen(false);
+    setSelectedTeacher(null);
+  };
 
-      const requestBody = {
-        _id: targetId,
-      };
+  // ISHGA QAYTARISH
+  const handleReturn = async () => {
+    if (!selectedTeacher) return;
+    const targetId = selectedTeacher.id || selectedTeacher._id;
+    if (!targetId) return toast.error("Ustoz ID topilmadi!");
 
-      console.log("O'chirilayotgan ID:", targetId);
-      console.log("Yuborilayotgan body:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/teacher/fire-teacher`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("Server javobi:", data);
-
-      if (!response.ok) {
-        throw new Error(data.message || `Xatolik: ${response.status}`);
+    returnTeacher.mutate(targetId as string, {
+      onSettled: () => {
+        setIsModalOpen(false);
+        setSelectedTeacher(null);
       }
-
-      setTeachers(teachers.filter((t) => (t.id || t._id) !== targetId));
-      setIsModalOpen(false);
-      setSelectedTeacher(null);
-
-      toast.success("Muvaffaqiyatli o'chirildi!");
-    } catch (err: any) {
-      console.error("Xatolik:", err);
-      toast.error(err.message || "Xatolik yuz berdi");
-    }
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -388,18 +196,25 @@ const handleReturn = async () => {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+        <p className="text-gray-500 dark:text-gray-400">Ustozlar yuklanmoqda...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (teachersError) {
     return (
       <div className="text-center text-red-600 dark:text-red-400 p-4">
-        <p>Xatolik: {error}</p>
+        <p>Xatolik: {teachersError.message}</p>
+        <button 
+          onClick={() => refetchTeachers()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Qayta urinish
+        </button>
       </div>
     );
   }
@@ -408,7 +223,12 @@ const handleReturn = async () => {
     <div className="max-w-7xl mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Ustozlar</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Ustozlar</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Jami {filteredTeachers.length} ta ustoz
+          </p>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
@@ -424,7 +244,8 @@ const handleReturn = async () => {
 
           <button
             onClick={handleAddClick}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-sm shadow-sm"
+            disabled={isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm disabled:opacity-50"
           >
             <UserPlus className="w-4 h-4" />
             Qo'shish
@@ -465,75 +286,80 @@ const handleReturn = async () => {
                   </td>
                 </tr>
               ) : (
-                filteredTeachers.map((teacher) => (
-                  <tr
-                    key={teacher.id || teacher._id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {teacher.first_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {teacher.last_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {teacher.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {teacher.phone || "—"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full uppercase tracking-wider ${getStatusBadge(teacher.status)}`}
-                      >
-                        {teacher.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
-                      {/* Uch nuqta tugmasi */}
-                      <button
-                        onClick={() => setOpenMenuId(openMenuId === (teacher.id || teacher._id) ? null : (teacher.id || teacher._id))}
-                        className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-
-                      {/* Dropdown menyu */}
-                      {openMenuId === (teacher.id || teacher._id) && (
-                        <div
-                          ref={menuRef}
-                          className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-50"
+                filteredTeachers.map((teacher) => {
+                  const teacherId = teacher.id || teacher._id;
+                  return (
+                    <tr
+                      key={teacherId}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {teacher.first_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {teacher.last_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {teacher.email}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {teacher.phone || "—"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full uppercase tracking-wider ${getStatusBadge(teacher.status)}`}
                         >
-                          {teacher.status === "ishdan bo'shatilgan" ? (
-                            <button
-                              onClick={() => handleReturnClick(teacher)}
-                              className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
-                            >
-                              <RefreshCw className="w-4 h-4" />
-                              Ishga qaytarish
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleDeleteClick(teacher)}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              O'chirish
-                            </button>
-                          )}
-                          
-                          <button
-                            onClick={() => handleInfoClick(teacher)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                          {teacher.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                        <button
+                          onClick={() => setOpenMenuId(openMenuId === teacherId ? null : teacherId)}
+                          className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          disabled={isPending}
+                        >
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+
+                        {openMenuId === teacherId && (
+                          <div
+                            ref={menuRef}
+                            className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-50"
                           >
-                            <Info className="w-4 h-4" />
-                            Info
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                            {teacher.status === "ishdan bo'shatilgan" ? (
+                              <button
+                                onClick={() => handleReturnClick(teacher)}
+                                className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                disabled={isPending}
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                                Ishga qaytarish
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleDeleteClick(teacher)}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                disabled={isPending}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                O'chirish
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={() => handleInfoClick(teacher)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                              disabled={isPending}
+                            >
+                              <Info className="w-4 h-4" />
+                              Info
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -554,6 +380,7 @@ const handleReturn = async () => {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                disabled={isPending}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -571,6 +398,7 @@ const handleReturn = async () => {
                         onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                         className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         required
+                        disabled={isPending}
                       />
                     </div>
                     <div>
@@ -581,6 +409,7 @@ const handleReturn = async () => {
                         onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                         className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         required
+                        disabled={isPending}
                       />
                     </div>
                   </div>
@@ -593,6 +422,7 @@ const handleReturn = async () => {
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       required
+                      disabled={isPending}
                     />
                   </div>
 
@@ -605,6 +435,7 @@ const handleReturn = async () => {
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       placeholder="+998901234567"
                       required
+                      disabled={isPending}
                     />
                   </div>
 
@@ -617,6 +448,7 @@ const handleReturn = async () => {
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       placeholder="Kamida 6 belgi"
                       required
+                      disabled={isPending}
                     />
                   </div>
 
@@ -627,11 +459,12 @@ const handleReturn = async () => {
                       onChange={(e) => setForm({ ...form, course_id: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       required
+                      disabled={isPending || coursesLoading}
                     >
                       <option value="">Kursni tanlang</option>
                       {courses.map((course) => (
                         <option key={course._id} value={course._id}>
-                          {course.name?.name || course.name || "Kurs"}
+                          {getCourseName(course)}
                         </option>
                       ))}
                     </select>
@@ -643,6 +476,7 @@ const handleReturn = async () => {
                       value={form.status}
                       onChange={(e) => setForm({ ...form, status: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      disabled={isPending}
                     >
                       <option value="faol">Faol</option>
                       <option value="ta'tilda">Ta'tilda</option>
@@ -710,6 +544,7 @@ const handleReturn = async () => {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all"
+                disabled={isPending}
               >
                 Bekor qilish
               </button>
@@ -723,14 +558,16 @@ const handleReturn = async () => {
                       ? handleConfirmDelete 
                       : handleReturn
                   }
-                  className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all ${
+                  disabled={isPending}
+                  className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all flex items-center gap-2 ${
                     modalType === "add"
-                      ? "bg-blue-600 hover:bg-blue-700"
+                      ? "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
                       : modalType === "return"
-                      ? "bg-green-600 hover:bg-green-700"
-                      : "bg-red-600 hover:bg-red-700"
+                      ? "bg-green-600 hover:bg-green-700 disabled:bg-green-400"
+                      : "bg-red-600 hover:bg-red-700 disabled:bg-red-400"
                   }`}
                 >
+                  {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                   {modalType === "add" && "Qo'shish"}
                   {modalType === "delete" && "O'chirish"}
                   {modalType === "return" && "Ishga qaytarish"}

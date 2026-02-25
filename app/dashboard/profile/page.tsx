@@ -448,7 +448,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* 🚀 ZUDLIK BILAN YANGILANISH (onSuccess da React State'ni yangilash) */}
+      {/*ZUDLIK BILAN YANGILANISH (onSuccess da React State'ni yangilash) */}
       <EditProfileModal
         isOpen={isEditProfileModalOpen}
         onClose={() => setIsEditProfileModalOpen(false)}

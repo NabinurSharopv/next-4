@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Edit, Trash2, Snowflake, X, Save, ThermometerSnowflake, ThermometerSun } from "lucide-react";
-import toast from "react-hot-toast";
-
-interface Course {
-  _id: string;
-  name: string | { id?: string; [key: string]: any };
-  price?: number;
-  duration?: string;
-  description?: string;
-  students_count?: number;
-  is_freeze?: boolean;
-}
+import { useState } from "react";
+import { Plus, Edit, Trash2, Snowflake, X, Save, ThermometerSnowflake, ThermometerSun, Loader2 } from "lucide-react";
+import { 
+  useCourses, 
+  useCreateCategory, 
+  useCreateCourse, 
+  useEditCourse, 
+  useFreezeCourse, 
+  useUnfreezeCourse, 
+  useDeleteCourse,
+  type Course 
+} from "@/hooks/useCourse";
 
 function getCookie(name: string): string | undefined {
   return document.cookie
@@ -21,12 +20,8 @@ function getCookie(name: string): string | undefined {
     ?.split("=")[1];
 }
 
-// 🟢 KATEGORIYA QO'SHISH MODALI
-function AddCategoryModal({ isOpen, onClose, onSuccess }: any) {
-  const [loading, setLoading] = useState(false);
+function AddCategoryModal({ isOpen, onClose, onSuccess, mutation }: any) {
   const [categoryName, setCategoryName] = useState("");
-
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
 
   if (!isOpen) return null;
 
@@ -36,43 +31,9 @@ function AddCategoryModal({ isOpen, onClose, onSuccess }: any) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-
-      const requestBody = {
-        name: categoryName.trim(),
-      };
-
-      const response = await fetch(`${API_BASE_URL}/course/create-category`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Kategoriya yaratishda xatolik");
-      }
-
-      toast.success("Kategoriya muvaffaqiyatli qo'shildi!");
-      setCategoryName("");
-      onSuccess();
-      onClose();
-      
-    } catch (err: any) {
-      toast.error(err.message || "Kategoriya yaratishda xatolik");
-    } finally {
-      setLoading(false);
-    }
+    mutation.mutate({ name: categoryName.trim() });
+    setCategoryName("");
+    onClose();
   };
 
   return (
@@ -97,6 +58,7 @@ function AddCategoryModal({ isOpen, onClose, onSuccess }: any) {
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="Backend dasturlash"
               autoFocus
+              disabled={mutation.isPending}
             />
           </div>
         </div>
@@ -107,10 +69,11 @@ function AddCategoryModal({ isOpen, onClose, onSuccess }: any) {
           </button>
           <button
             onClick={handleAddCategory}
-            disabled={loading || !categoryName.trim()}
-            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50"
+            disabled={mutation.isPending || !categoryName.trim()}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl disabled:opacity-50 flex items-center gap-2"
           >
-            {loading ? "Qo'shilmoqda..." : "Qo'shish"}
+            {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            {mutation.isPending ? "Qo'shilmoqda..." : "Qo'shish"}
           </button>
         </div>
       </div>
@@ -118,17 +81,13 @@ function AddCategoryModal({ isOpen, onClose, onSuccess }: any) {
   );
 }
 
-// 🟢 KURS QO'SHISH MODALI
-function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
-  const [loading, setLoading] = useState(false);
+function AddCourseModal({ isOpen, onClose, onSuccess, mutation }: any) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     duration: "",
     price: "",
   });
-
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
 
   if (!isOpen) return null;
 
@@ -138,46 +97,15 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
+    mutation.mutate({
+      name: formData.name.trim(),
+      description: formData.description || "Yangi kurs",
+      duration: formData.duration || "2 yil",
+      price: formData.price ? Number(formData.price) : 1000000,
+    });
 
-      const requestBody = {
-        name: formData.name.trim(),
-        description: formData.description || "Yangi kurs",
-        duration: formData.duration || "2 yil",
-        price: formData.price ? Number(formData.price) : 1000000,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/course/create-course`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Kurs yaratishda xatolik");
-      }
-
-      toast.success("Kurs muvaffaqiyatli qo'shildi!");
-      setFormData({ name: "", description: "", duration: "", price: "" });
-      onSuccess();
-      onClose();
-      
-    } catch (err: any) {
-      toast.error(err.message || "Kurs yaratishda xatolik");
-    } finally {
-      setLoading(false);
-    }
+    setFormData({ name: "", description: "", duration: "", price: "" });
+    onClose();
   };
 
   return (
@@ -201,6 +129,7 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="Backend dasturlash"
+              disabled={mutation.isPending}
             />
           </div>
 
@@ -214,6 +143,7 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="Yangi kurs"
               rows={3}
+              disabled={mutation.isPending}
             />
           </div>
 
@@ -227,6 +157,7 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
               onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="2 yil"
+              disabled={mutation.isPending}
             />
           </div>
 
@@ -241,6 +172,7 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="1000000"
               min="0"
+              disabled={mutation.isPending}
             />
           </div>
         </div>
@@ -251,10 +183,11 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
           </button>
           <button
             onClick={handleAddCourse}
-            disabled={loading || !formData.name.trim()}
-            className="px-5 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl disabled:opacity-50"
+            disabled={mutation.isPending || !formData.name.trim()}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-xl disabled:opacity-50 flex items-center gap-2"
           >
-            {loading ? "Qo'shilmoqda..." : "Kurs qo'shish"}
+            {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            {mutation.isPending ? "Qo'shilmoqda..." : "Kurs qo'shish"}
           </button>
         </div>
       </div>
@@ -262,24 +195,18 @@ function AddCourseModal({ isOpen, onClose, onSuccess }: any) {
   );
 }
 
-// 🟢 KURS TAHRIRLASH MODALI (POSTMANDAGI KABI)
-function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
-  const [loading, setLoading] = useState(false);
+function EditCourseModal({ isOpen, onClose, onSuccess, course, mutation }: any) {
   const [formData, setFormData] = useState({
     duration: "",
     price: "",
   });
 
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
-
-  useEffect(() => {
-    if (course) {
-      setFormData({
-        duration: course.duration || "",
-        price: course.price?.toString() || "",
-      });
-    }
-  }, [course]);
+  if (course && isOpen && !formData.duration) {
+    setFormData({
+      duration: course.duration || "",
+      price: course.price?.toString() || "",
+    });
+  }
 
   if (!isOpen) return null;
 
@@ -289,49 +216,13 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
       return;
     }
 
-    setLoading(true);
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
+    mutation.mutate({
+      course_id: course._id,
+      duration: formData.duration,
+      price: Number(formData.price),
+    });
 
-      // 🟢 POSTMANDAGI TO'G'RI FORMAT (faqat course_id, duration, price)
-      const requestBody = {
-        course_id: course._id,
-        duration: formData.duration,
-        price: Number(formData.price),
-      };
-
-      console.log("📤 Kurs tahrirlash:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/course/edit-course`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("📥 Server javobi:", data);
-
-      if (!response.ok) {
-        throw new Error(data.message || "Kursni tahrirlashda xatolik");
-      }
-
-      toast.success("Kurs muvaffaqiyatli tahrirlandi!");
-      onSuccess();
-      onClose();
-      
-    } catch (err: any) {
-      console.error("❌ Xatolik:", err);
-      toast.error(err.message || "Kursni tahrirlashda xatolik");
-    } finally {
-      setLoading(false);
-    }
+    onClose();
   };
 
   return (
@@ -355,7 +246,6 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
             </p>
           </div>
 
-          {/* Description (faqat ko'rsatish uchun, tahrirlanmaydi) */}
           {course?.description && (
             <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
               <p className="text-sm text-gray-500 dark:text-gray-400">Description</p>
@@ -363,7 +253,6 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
             </div>
           )}
 
-          {/* Duration - tahrirlanadi */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Duration <span className="text-red-500">*</span>
@@ -374,10 +263,10 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
               onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="2 yil"
+              disabled={mutation.isPending}
             />
           </div>
 
-          {/* Price - tahrirlanadi */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Price (UZS) <span className="text-red-500">*</span>
@@ -389,6 +278,7 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
               className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
               placeholder="1000000"
               min="0"
+              disabled={mutation.isPending}
             />
           </div>
           
@@ -405,11 +295,11 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
           </button>
           <button
             onClick={handleEditCourse}
-            disabled={loading || !formData.duration || !formData.price}
+            disabled={mutation.isPending || !formData.duration || !formData.price}
             className="px-5 py-2.5 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded-xl disabled:opacity-50 flex items-center gap-2"
           >
-            <Save className="w-4 h-4" />
-            {loading ? "Saqlanmoqda..." : "Saqlash"}
+            {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+            {mutation.isPending ? "Saqlanmoqda..." : "Saqlash"}
           </button>
         </div>
       </div>
@@ -417,182 +307,34 @@ function EditCourseModal({ isOpen, onClose, onSuccess, course }: any) {
   );
 }
 
-// 🟢 ASOSIY SAHIFA
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [showFrozen, setShowFrozen] = useState<boolean | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [showFrozen, setShowFrozen] = useState<boolean | null>(null);
 
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
+  const { 
+    data: courses = [], 
+    isLoading, 
+    error, 
+    refetch 
+  } = useCourses(showFrozen === null ? undefined : showFrozen);
+  
+  const createCategory = useCreateCategory();
+  const createCourse = useCreateCourse();
+  const editCourse = useEditCourse();
+  const freezeCourse = useFreezeCourse();
+  const unfreezeCourse = useUnfreezeCourse();
+  const deleteCourse = useDeleteCourse();
 
-  const fetchCourses = async (is_freeze?: boolean) => {
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        setError("Token topilmadi");
-        setLoading(false);
-        return;
-      }
-
-      // 🟢 is_freeze parametri bilan filterlash
-      let url = `${API_BASE_URL}/course/get-courses`;
-      if (is_freeze !== undefined) {
-        url += `?is_freeze=${is_freeze}`;
-      }
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.message || "Xatolik yuz berdi");
-
-      let coursesData = data.data || data.courses || data.results || data;
-      
-      if (Array.isArray(coursesData)) {
-        setCourses(coursesData);
-      } else {
-        setCourses([]);
-      }
-      
-    } catch (err: any) {
-      setError(err.message);
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 🟢 KURSNI O'CHIRISH
-  const handleDeleteCourse = async (course: Course) => {
-    if (!confirm(`"${getCourseName(course)}" kursini o'chirishni tasdiqlaysizmi?`)) {
-      return;
-    }
-
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-
-      // 🟢 TO'G'RI FORMAT: course_id
-      const requestBody = {
-        course_id: course._id,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/course/delete-course`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Kursni o'chirishda xatolik");
-      }
-
-      toast.success("Kurs muvaffaqiyatli o'chirildi!");
-      fetchCourses(showFrozen);
-      
-    } catch (err: any) {
-      toast.error(err.message || "Kursni o'chirishda xatolik");
-    }
-  };
-
-  // 🟢 KURSNI MUZLATISH
-  const handleFreezeCourse = async (course: Course) => {
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-
-      const requestBody = {
-        course_id: course._id,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/course/freeze-course`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Kursni muzlatishda xatolik");
-      }
-
-      toast.success("Kurs muvaffaqiyatli muzlatildi!");
-      fetchCourses(showFrozen);
-      
-    } catch (err: any) {
-      toast.error(err.message || "Kursni muzlatishda xatolik");
-    }
-  };
-
-  // 🟢 KURSNI ERITISH
-  const handleUnfreezeCourse = async (course: Course) => {
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        toast.error("Token topilmadi!");
-        return;
-      }
-
-      const requestBody = {
-        course_id: course._id,
-      };
-
-      const response = await fetch(`${API_BASE_URL}/course/unfreeze-course`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Kursni eritishda xatolik");
-      }
-
-      toast.success("Kurs muvaffaqiyatli eritildi!");
-      fetchCourses(showFrozen);
-      
-    } catch (err: any) {
-      toast.error(err.message || "Kursni eritishda xatolik");
-    }
-  };
-
-  // 🟢 KURSNI TAXRIRLASH UCHUN MODALNI OCHISH
-  const handleEditClick = (course: Course) => {
-    setSelectedCourse(course);
-    setIsEditModalOpen(true);
-  };
-
-  useEffect(() => {
-    fetchCourses();
-  }, []);
+  const isPending = 
+    createCategory.isPending || 
+    createCourse.isPending || 
+    editCourse.isPending || 
+    freezeCourse.isPending || 
+    unfreezeCourse.isPending || 
+    deleteCourse.isPending;
 
   const getCourseName = (course: Course): string => {
     if (!course.name) return "Nomsiz kurs";
@@ -610,10 +352,32 @@ export default function CoursesPage() {
     return price.toLocaleString('uz-UZ') + " UZS";
   };
 
-  if (loading) {
+  const handleDeleteCourse = async (course: Course) => {
+    if (!confirm(`"${getCourseName(course)}" kursini o'chirishni tasdiqlaysizmi?`)) {
+      return;
+    }
+
+    deleteCourse.mutate({ course_id: course._id });
+  };
+
+  const handleFreezeCourse = async (course: Course) => {
+    freezeCourse.mutate({ course_id: course._id });
+  };
+
+  const handleUnfreezeCourse = async (course: Course) => {
+    unfreezeCourse.mutate({ course_id: course._id });
+  };
+
+  const handleEditClick = (course: Course) => {
+    setSelectedCourse(course);
+    setIsEditModalOpen(true);
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+        <p className="text-gray-500 dark:text-gray-400">Kurslar yuklanmoqda...</p>
       </div>
     );
   }
@@ -621,9 +385,9 @@ export default function CoursesPage() {
   if (error) {
     return (
       <div className="text-center text-red-600 p-4">
-        <p>Xatolik: {error}</p>
+        <p>Xatolik: {error.message}</p>
         <button 
-          onClick={() => window.location.reload()} 
+          onClick={() => refetch()}
           className="mt-2 px-4 py-2 bg-blue-600 text-white rounded"
         >
           Qayta yuklash
@@ -634,20 +398,24 @@ export default function CoursesPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-6">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Kurslar Ro'yxati</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Kurslar Ro'yxati</h1>
+          <p className="text-gray-600 dark:text-gray-400">Jami {courses.length} ta kurs</p>
+        </div>
         <div className="flex gap-3">
           <button
             onClick={() => setIsCategoryModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             <Plus className="w-5 h-5" />
             Kategoriya qo'shish
           </button>
           <button
             onClick={() => setIsCourseModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
+            disabled={isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             <Plus className="w-5 h-5" />
             Kurs qo'shish
@@ -655,50 +423,42 @@ export default function CoursesPage() {
         </div>
       </div>
 
-      {/* Filter tugmalari */}
       <div className="flex gap-2 mb-6">
         <button
-          onClick={() => {
-            setShowFrozen(null);
-            fetchCourses();
-          }}
+          onClick={() => setShowFrozen(null)}
+          disabled={isPending}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             showFrozen === null 
               ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-          }`}
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+          } disabled:opacity-50`}
         >
           Barcha kurslar
         </button>
         <button
-          onClick={() => {
-            setShowFrozen(false);
-            fetchCourses(false);
-          }}
+          onClick={() => setShowFrozen(false)}
+          disabled={isPending}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             showFrozen === false 
               ? 'bg-green-600 text-white' 
-              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-          }`}
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+          } disabled:opacity-50`}
         >
           Faol kurslar
         </button>
         <button
-          onClick={() => {
-            setShowFrozen(true);
-            fetchCourses(true);
-          }}
+          onClick={() => setShowFrozen(true)}
+          disabled={isPending}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             showFrozen === true 
               ? 'bg-blue-400 text-white' 
-              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-          }`}
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+          } disabled:opacity-50`}
         >
           Muzlatilgan kurslar
         </button>
       </div>
 
-      {/* Statistika */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white dark:bg-[#111111] rounded-xl p-6 border border-gray-200 dark:border-gray-800">
           <p className="text-sm text-gray-500 dark:text-gray-400">Jami kurslar</p>
@@ -764,11 +524,12 @@ export default function CoursesPage() {
                   <span>👥 {course.students_count || 0} students</span>
                 </div>
                 
-                {/* 🟢 BARCHA TUGMALAR ISHLAYDI */}
+                {/* Tugmalar */}
                 <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-800">
                   <button
                     onClick={() => handleEditClick(course)}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                    disabled={isPending}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors disabled:opacity-50"
                   >
                     <Edit className="w-4 h-4" />
                     Tahrirlash
@@ -776,7 +537,8 @@ export default function CoursesPage() {
                   
                   <button
                     onClick={() => handleDeleteCourse(course)}
-                    className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                    disabled={isPending}
+                    className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
                   >
                     <Trash2 className="w-4 h-4" />
                     O'chirish
@@ -785,7 +547,8 @@ export default function CoursesPage() {
                   {course.is_freeze ? (
                     <button
                       onClick={() => handleUnfreezeCourse(course)}
-                      className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors"
+                      disabled={isPending}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors disabled:opacity-50"
                     >
                       <ThermometerSun className="w-4 h-4" />
                       Eritish
@@ -793,7 +556,8 @@ export default function CoursesPage() {
                   ) : (
                     <button
                       onClick={() => handleFreezeCourse(course)}
-                      className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                      disabled={isPending}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 text-sm text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors disabled:opacity-50"
                     >
                       <ThermometerSnowflake className="w-4 h-4" />
                       Muzlatish
@@ -806,17 +570,18 @@ export default function CoursesPage() {
         )}
       </div>
 
-      {/* Modallar */}
       <AddCategoryModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
-        onSuccess={() => fetchCourses(showFrozen)}
+        onSuccess={() => {}}
+        mutation={createCategory}
       />
 
       <AddCourseModal
         isOpen={isCourseModalOpen}
         onClose={() => setIsCourseModalOpen(false)}
-        onSuccess={() => fetchCourses(showFrozen)}
+        onSuccess={() => {}}
+        mutation={createCourse}
       />
 
       <EditCourseModal
@@ -825,12 +590,9 @@ export default function CoursesPage() {
           setIsEditModalOpen(false);
           setSelectedCourse(null);
         }}
-        onSuccess={() => {
-          fetchCourses(showFrozen);
-          setIsEditModalOpen(false);
-          setSelectedCourse(null);
-        }}
+        onSuccess={() => {}}
         course={selectedCourse}
+        mutation={editCourse}
       />
     </div>
   );

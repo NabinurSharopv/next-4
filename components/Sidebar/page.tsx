@@ -23,7 +23,6 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ userRole, sidebarOpen, setSidebarOpen }: SidebarProps) {
-  // Asosiy menu itemlari – barcha linklar dashboard ichiga yo‘naltirilgan
   const mainMenuItems = [
     { icon: LayoutDashboard, label: "Asosiy", href: "/dashboard", roles: ["admin", "manager", "developer"] },
     { icon: Users, label: "Managerlar", href: "/dashboard/manager", roles: ["admin", "manager", "developer"] },
@@ -64,7 +63,6 @@ export default function Sidebar({ userRole, sidebarOpen, setSidebarOpen }: Sideb
       transition-all duration-300 ease-in-out
       flex flex-col h-screen
     `}>
-      {/* Logo va menyu tugmasi */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800">
         {sidebarOpen ? (
           <span className="text-xl font-bold text-blue-600">Admin CRM</span>
@@ -79,7 +77,7 @@ export default function Sidebar({ userRole, sidebarOpen, setSidebarOpen }: Sideb
         </button>
       </div>
 
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav className="flex-1 py-4">
         <ul className="space-y-1 px-2">
           {sidebarOpen && (
             <li className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">

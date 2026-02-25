@@ -1,32 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { MoreHorizontal, Edit, Trash2, X } from "lucide-react";
-
-interface Manager {
-  id?: number | string;
-  _id?: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  role: string;
-  status: string;
-}
-
-function getCookie(name: string): string | undefined {
-  return document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(name + "="))
-    ?.split("=")[1];
-}
+import { useState, useRef, useEffect } from "react";
+import { MoreHorizontal, Edit, Trash2, X, Loader2 } from "lucide-react";
+import { useManagers, useUpdateManager, useDeleteManager, type Manager } from "@/hooks/useManager";
 
 export default function ManagerPage() {
-  const [managers, setManagers] = useState<Manager[]>([]);
-  const [filteredManagers, setFilteredManagers] = useState<Manager[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("Hammasi");
-  
   const [openMenuIndex, setOpenMenuIndex] = useState<number | null>(null);
   const menuRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
   
@@ -42,11 +21,19 @@ export default function ManagerPage() {
     status: "",
   });
 
-  const API_BASE_URL = "https://admin-crm.onrender.com/api/staff";
+  const { 
+    data: managers = [], 
+    isLoading, 
+    error, 
+    refetch 
+  } = useManagers();
+  
+  const updateManager = useUpdateManager();
+  const deleteManager = useDeleteManager();
 
-  useEffect(() => {
-    fetchManagers();
-  }, []);
+  const filteredManagers = statusFilter === "Hammasi"
+    ? managers
+    : managers.filter((manager) => manager.status === statusFilter);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -63,56 +50,6 @@ export default function ManagerPage() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [openMenuIndex]);
-
-  const fetchManagers = async () => {
-    try {
-      const token = getCookie("token");
-
-      if (!token) {
-        setError("Token topilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/all-managers`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.status === 401 || response.status === 403) {
-        setError("Ruxsat berilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || "Ma'lumotlarni olishda xatolik");
-      }
-
-      const managersData = data.data || data;
-      setManagers(managersData);
-      setFilteredManagers(managersData);
-    } catch (err: any) {
-      setError(err.message || "Serverga ulanishda xatolik");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (statusFilter === "Hammasi") {
-      setFilteredManagers(managers);
-    } else {
-      setFilteredManagers(
-        managers.filter((manager) => manager.status === statusFilter)
-      );
-    }
-  }, [statusFilter, managers]);
 
   const handleEditClick = (manager: Manager) => {
     setSelectedManager(manager);
@@ -141,45 +78,21 @@ export default function ManagerPage() {
     const targetId = selectedManager.id || selectedManager._id;
     
     if (!targetId) {
-      alert("Manager identifikatori (ID) topilmadi!");
+      toast.error("Manager identifikatori (ID) topilmadi!");
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      
-      const response = await fetch(`${API_BASE_URL}/edited-manager`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          _id: targetId,
-          first_name: editForm.first_name,
-          last_name: editForm.last_name,
-          email: editForm.email,
-          status: editForm.status
-        }),
-      });
+    updateManager.mutate({
+      _id: targetId as string,
+      first_name: editForm.first_name,
+      last_name: editForm.last_name,
+      email: editForm.email,
+      status: editForm.status,
+      role: editForm.role,
+    });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.message || "Tahrirlash uchun huquqingiz yetarli emas!");
-      }
-
-      const updatedManagers = managers.map((m) =>
-        (m.id || m._id) === targetId ? { ...m, ...editForm } : m
-      );
-      setManagers(updatedManagers);
-      setIsModalOpen(false);
-      setSelectedManager(null);
-      alert("Muvaffaqiyatli saqlandi!");
-      
-    } catch (err: any) {
-      alert(err.message);
-    }
+    setIsModalOpen(false);
+    setSelectedManager(null);
   };
 
   const handleConfirmDelete = async () => {
@@ -188,30 +101,13 @@ export default function ManagerPage() {
     const targetId = selectedManager.id || selectedManager._id;
     
     if (!targetId) {
-      alert("Manager identifikatori (ID) topilmadi!");
+      toast.error("Manager identifikatori (ID) topilmadi!");
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      
-      const response = await fetch(`${API_BASE_URL}/${targetId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || "O'chirish uchun huquqingiz yetarli emas!");
-      }
-
-      setManagers(managers.filter((m) => (m.id || m._id) !== targetId));
-      setIsModalOpen(false);
-      setSelectedManager(null);
-      alert("Muvaffaqiyatli o'chirildi!");
-    } catch (err: any) {
-      alert(err.message);
-    }
+    deleteManager.mutate(targetId as string);
+    setIsModalOpen(false);
+    setSelectedManager(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -227,10 +123,13 @@ export default function ManagerPage() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+          <p className="text-gray-500 dark:text-gray-400">Managerlar yuklanmoqda...</p>
+        </div>
       </div>
     );
   }
@@ -238,7 +137,13 @@ export default function ManagerPage() {
   if (error) {
     return (
       <div className="text-center text-red-600 dark:text-red-400 p-4">
-        <p>Xatolik: {error}</p>
+        <p>Xatolik: {error.message}</p>
+        <button 
+          onClick={() => refetch()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Qayta urinish
+        </button>
       </div>
     );
   }
@@ -248,7 +153,9 @@ export default function ManagerPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold mb-4">Managerlar</h1>
-          <p className="text-gray-600 dark:text-gray-400">Managerlar ro'yxati</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            Jami {filteredManagers.length} ta manager
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -314,6 +221,7 @@ export default function ManagerPage() {
                           e.preventDefault();
                           setOpenMenuIndex(openMenuIndex === index ? null : index);
                         }}
+                        disabled={updateManager.isPending || deleteManager.isPending}
                       >
                         <MoreHorizontal className="w-5 h-5" />
                       </button>
@@ -332,6 +240,7 @@ export default function ManagerPage() {
                               handleEditClick(manager);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-t-lg flex items-center gap-2"
+                            disabled={updateManager.isPending}
                           >
                             <Edit className="w-4 h-4" />
                             Tahrirlash
@@ -342,6 +251,7 @@ export default function ManagerPage() {
                               handleDeleteClick(manager);
                             }}
                             className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-b-lg flex items-center gap-2"
+                            disabled={deleteManager.isPending}
                           >
                             <Trash2 className="w-4 h-4" />
                             O'chirish
@@ -357,7 +267,6 @@ export default function ManagerPage() {
         </div>
       </div>
 
-      {/* Yaxshilangan Modal qismi */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] transition-opacity duration-300">
           <div className="bg-white dark:bg-[#111111] rounded-2xl max-w-md w-full mx-4 shadow-2xl shadow-black/50 border border-gray-200 dark:border-gray-800 transform transition-all">
@@ -365,7 +274,11 @@ export default function ManagerPage() {
               <h2 className="text-xl font-semibold">
                 {modalType === "edit" ? "Manager tahrirlash" : "Manager o'chirish"}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                disabled={updateManager.isPending || deleteManager.isPending}
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -379,6 +292,7 @@ export default function ManagerPage() {
                       value={editForm.first_name}
                       onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                      disabled={updateManager.isPending}
                     />
                   </div>
                   <div>
@@ -388,6 +302,7 @@ export default function ManagerPage() {
                       value={editForm.last_name}
                       onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                      disabled={updateManager.isPending}
                     />
                   </div>
                   <div>
@@ -397,6 +312,7 @@ export default function ManagerPage() {
                       value={editForm.email}
                       onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                      disabled={updateManager.isPending}
                     />
                   </div>
                   <div>
@@ -405,6 +321,7 @@ export default function ManagerPage() {
                       value={editForm.role}
                       onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                      disabled={updateManager.isPending}
                     >
                       <option value="manager">Manager</option>
                       <option value="admin">Admin</option>
@@ -417,6 +334,7 @@ export default function ManagerPage() {
                       value={editForm.status}
                       onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                      disabled={updateManager.isPending}
                     >
                       <option value="faol">Faol</option>
                       <option value="ta'tilda">Ta'tilda</option>
@@ -431,15 +349,25 @@ export default function ManagerPage() {
               )}
             </div>
             <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-black/20 rounded-b-2xl">
-              <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all">
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all"
+                disabled={updateManager.isPending || deleteManager.isPending}
+              >
                 Bekor qilish
               </button>
               <button
                 onClick={modalType === "edit" ? handleSaveEdit : handleConfirmDelete}
-                className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all shadow-lg ${
-                  modalType === "edit" ? "bg-blue-600 hover:bg-blue-700 shadow-blue-500/30" : "bg-red-600 hover:bg-red-700 shadow-red-500/30"
+                disabled={updateManager.isPending || deleteManager.isPending}
+                className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all shadow-lg flex items-center gap-2 ${
+                  modalType === "edit" 
+                    ? "bg-blue-600 hover:bg-blue-700 shadow-blue-500/30 disabled:bg-blue-400" 
+                    : "bg-red-600 hover:bg-red-700 shadow-red-500/30 disabled:bg-red-400"
                 }`}
               >
+                {(updateManager.isPending || deleteManager.isPending) && (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                )}
                 {modalType === "edit" ? "Saqlash" : "O'chirish"}
               </button>
             </div>

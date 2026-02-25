@@ -1,79 +1,46 @@
 "use client";
 
-import React, { useState, FormEvent, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Eye, EyeOff, Moon, Sun } from "lucide-react";   
+import { Loader2, Eye, EyeOff, Moon, Sun } from "lucide-react";
+import { useLogin } from "@/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
-interface LoginProps {
-  onLoginSuccess: () => void;
-}
-
-const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const loginMutation = useLogin();
 
   // Mounted tekshiruvi (hydration xatoligi uchun)
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/auth/sign-in', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
-      });
-
-      if (response.status === 204) {
-        setTimeout(() => {
-          window.location.replace("/");
-        }, 500);
-        return;
-      }
-
-      if (response.ok) {
-        const data = await response.json();
-        const token = data.token;
-        const role = data.role || "user";
-
-        if (token) {
-          document.cookie = `token=${token}; path=/; max-age=86400; SameSite=Lax`;
-          document.cookie = `role=${role}; path=/; max-age=86400; SameSite=Lax`;
-          localStorage.setItem("token", token);
-          localStorage.setItem("user_role", role);
-        }
-
-        window.location.replace("/");
-        return;
-      }
-
-      const data = await response.json().catch(() => ({}));
-      setError(data.message || "Email yoki parol noto'g'ri");
+    
+    // Agar token bo'lsa, dashboardga redirect
+    const token = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("token="))
+      ?.split("=")[1];
       
-    } catch (err) {
-      setError("Server bilan aloqa yo'q");
-    } finally {
-      setLoading(false);
+    if (token) {
+      router.push("/dashboard");
     }
+  }, [router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    loginMutation.mutate({ email, password });
   };
 
-  // Dark mode toggle funksiyasi - bir bosgida o'zgaradi
+  // Dark mode toggle funksiyasi
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
   };
@@ -90,7 +57,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0a0a0a] p-4 font-sans transition-colors duration-300">
       
-      {/* DARK MODE TUGMASI - BIR BOSGINDA O'ZGARADI */}
+      {/* DARK MODE TUGMASI */}
       <button
         onClick={toggleTheme}
         className="absolute top-5 right-5 z-50 p-2.5 rounded-full bg-white dark:bg-[#111111] border border-zinc-200 dark:border-zinc-800 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-110 active:scale-95"
@@ -130,6 +97,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={loginMutation.isPending}
               />
             </div>
 
@@ -146,30 +114,35 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={loginMutation.isPending}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-white transition-colors"
+                  disabled={loginMutation.isPending}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {error && (
+            {loginMutation.error && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400 text-xs font-medium text-center transition-colors">
-                {error}
+                {(loginMutation.error as Error).message}
               </div>
             )}
 
             <Button
               type="submit"
-              disabled={loading}
-              className="w-full h-12 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-black font-bold rounded-xl transition-all active:scale-[0.98] shadow-lg dark:shadow-white/5"
+              disabled={loginMutation.isPending}
+              className="w-full h-12 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-white dark:text-black font-bold rounded-xl transition-all active:scale-[0.98] shadow-lg dark:shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {loginMutation.isPending ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Kirish...</span>
+                </div>
               ) : (
                 "Kirish"
               )}

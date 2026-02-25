@@ -1,26 +1,17 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Trash2, X, Search, UserPlus, RefreshCw, MoreHorizontal, Info, Calendar } from "lucide-react";
-import toast from "react-hot-toast";
-
-interface Student {
-  id?: number | string;
-  _id?: string;
-  first_name: string;
-  last_name: string;
-  email?: string;
-  phone?: string;
-  status: string;
-  groups_count?: number;
-}
-
-interface Group {
-  _id: string;
-  name?: string;
-  title?: string;
-  course_name?: string;
-}
+import { useState, useRef, useEffect } from "react";
+import { Trash2, X, Search, UserPlus, RefreshCw, MoreHorizontal, Info, Calendar, Loader2 } from "lucide-react";
+import { 
+  useStudents, 
+  useGroups, 
+  useCreateStudent, 
+  useDeleteStudent, 
+  useReturnStudent, 
+  useLeaveStudent,
+  type Student,
+  type Group
+} from "@/hooks/useStudent";
 
 function getCookie(name: string): string | undefined {
   return document.cookie
@@ -30,26 +21,16 @@ function getCookie(name: string): string | undefined {
 }
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Filter va qidiruv
   const [statusFilter, setStatusFilter] = useState<string>("Hammasi");
   const [searchQuery, setSearchQuery] = useState<string>("");
   
-  // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"add" | "delete" | "return" | "info" | "vacation" | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
-  // Dropdown menyu uchun
   const [openMenuId, setOpenMenuId] = useState<string | number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
-  // Form (qo'shish uchun)
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -58,14 +39,32 @@ export default function StudentsPage() {
     group_id: "",
   });
 
-  // Ta'til uchun qo'shimcha state
   const [vacationData, setVacationData] = useState({
     start_date: "",
     end_date: "",
     reason: "",
   });
 
-  const API_BASE_URL = "https://admin-crm.onrender.com/api";
+  // TanStack Query hooks
+  const { 
+    data: students = [], 
+    isLoading: studentsLoading, 
+    error: studentsError,
+    refetch: refetchStudents
+  } = useStudents();
+  
+  const { 
+    data: groups = [], 
+    isLoading: groupsLoading 
+  } = useGroups();
+  
+  const createStudent = useCreateStudent();
+  const deleteStudent = useDeleteStudent();
+  const returnStudent = useReturnStudent();
+  const leaveStudent = useLeaveStudent();
+
+  const isLoading = studentsLoading || groupsLoading;
+  const isPending = createStudent.isPending || deleteStudent.isPending || returnStudent.isPending || leaveStudent.isPending;
 
   // Tashqariga bosilganda menyuni yopish
   useEffect(() => {
@@ -78,107 +77,18 @@ export default function StudentsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Guruhlarni yuklash
-  const fetchGroups = async () => {
-    try {
-      const token = getCookie("token");
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/group/get-all-group`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      const result = await response.json();
-      console.log("Guruhlar javobi:", result);
-      
-      if (result?.data && Array.isArray(result.data)) {
-        setGroups(result.data);
-      } else if (Array.isArray(result)) {
-        setGroups(result);
-      } else {
-        setGroups([]);
-        console.error("Guruhlar formati noto'g'ri:", result);
-      }
-    } catch (error) {
-      console.error("Guruhlarni yuklashda xatolik:", error);
-      setGroups([]);
-    }
-  };
-
-  // Studentlarni yuklash
-  const fetchStudents = async (showToast = false) => {
-    try {
-      const token = getCookie("token");
-      if (!token) {
-        setError("Token topilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      console.log("📡 Studentlar yuklanmoqda...");
-
-      const response = await fetch(`${API_BASE_URL}/student/get-all-students`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      console.log("📦 Yuklangan studentlar:", data);
-
-      if (response.status === 401 || response.status === 403) {
-        setError("Ruxsat berilmadi. Iltimos, qayta login qiling.");
-        setLoading(false);
-        return;
-      }
-
-      if (!response.ok) throw new Error(data.message || "Ma'lumotlarni olishda xatolik");
-
-      const studentsData = data.data || data;
-      setStudents(studentsData);
-      setFilteredStudents(studentsData);
-      
-      if (showToast) {
-        toast.success("Ma'lumotlar yangilandi!", {
-          duration: 2000,
-          icon: "✅",
-        });
-      }
-    } catch (err: any) {
-      setError(err.message || "Serverga ulanishda xatolik");
-      toast.error(err.message || "Serverga ulanishda xatolik");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchStudents();
-    fetchGroups();
-  }, []);
-
   // Filter va qidiruv
-  useEffect(() => {
-    let result = students;
-
-    if (statusFilter !== "Hammasi") {
-      result = result.filter((student) => student.status.toLowerCase() === statusFilter.toLowerCase());
-    }
-
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (student) =>
-          student.first_name.toLowerCase().includes(query) ||
-          student.last_name.toLowerCase().includes(query) ||
-          student.phone?.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredStudents(result);
-  }, [statusFilter, searchQuery, students]);
+  const filteredStudents = students.filter((student) => {
+    const matchesStatus = statusFilter === "Hammasi" || 
+      student.status.toLowerCase() === statusFilter.toLowerCase();
+    
+    const matchesSearch = searchQuery === "" || 
+      student.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.phone?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    return matchesStatus && matchesSearch;
+  });
 
   // Modal funksiyalari
   const handleAddClick = () => {
@@ -233,46 +143,14 @@ export default function StudentsPage() {
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      
-      const requestBody = {
-        first_name: form.first_name,
-        last_name: form.last_name,
-        phone: form.phone,
-        groups: [
-          {
-            group: form.group_id
-          }
-        ]
-      };
+    createStudent.mutate({
+      first_name: form.first_name,
+      last_name: form.last_name,
+      phone: form.phone,
+      groups: [{ group: form.group_id }]
+    });
 
-      console.log("Yuborilayotgan ma'lumotlar:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/student/create-student`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("Server javobi:", data);
-      
-      if (!response.ok) throw new Error(data.message || "Qo'shishda xatolik!");
-
-      setIsModalOpen(false);
-      toast.success("Yangi student muvaffaqiyatli qo'shildi!", {
-        duration: 3000,
-        icon: "🎉",
-      });
-      fetchStudents(true);
-    } catch (err: any) {
-      console.error("Xatolik detallari:", err);
-      toast.error(err.message);
-    }
+    setIsModalOpen(false);
   };
 
   // TA'TILGA CHIQARISH
@@ -286,98 +164,25 @@ export default function StudentsPage() {
       return;
     }
 
-    try {
-      const token = getCookie("token");
-      
-      const requestBody = {
-        _id: targetId,
-        start_date: vacationData.start_date,
-        end_date: vacationData.end_date,
-        reason: vacationData.reason,
-      };
+    leaveStudent.mutate({
+      _id: targetId as string,
+      ...vacationData,
+    });
 
-      console.log("Ta'tilga chiqarish:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/student/leave-student`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const responseText = await response.text();
-      console.log("Response status:", response.status);
-      console.log("Response text:", responseText);
-
-      if (response.ok) {
-        setIsModalOpen(false);
-        toast.success("Student ta'tilga chiqarildi!", {
-          duration: 3000,
-          icon: "🌴",
-        });
-        await fetchStudents(true);
-      } else {
-        const errorData = JSON.parse(responseText);
-        throw new Error(errorData.message || "Ta'tilga chiqarish xatosi!");
-      }
-    } catch (err: any) {
-      console.error("Xatolik:", err);
-      toast.error(err.message);
-    }
+    setIsModalOpen(false);
   };
 
-  // ISHGA QAYTARISH (faol holatga o'tkazish)
+  // QAYTARISH (faollashtirish)
   const handleReturn = async () => {
     if (!selectedStudent) return;
     const targetId = selectedStudent.id || selectedStudent._id;
     if (!targetId) return toast.error("Student ID topilmadi!");
 
-    try {
-      const token = getCookie("token");
-      
-      const requestBody = {
-        _id: targetId,
-      };
+    returnStudent.mutate({
+      _id: targetId as string,
+    });
 
-      console.log("Ishga qaytarish so'rovi:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/student/return-student`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const responseText = await response.text();
-      console.log("Response status:", response.status);
-      console.log("Response text:", responseText);
-
-      if (response.ok) {
-        setIsModalOpen(false);
-        toast.success("Student muvaffaqiyatli faol holatga o'tkazildi!", {
-          duration: 3000,
-          icon: "🔄",
-        });
-        await fetchStudents(true);
-      } else {
-        const errorData = JSON.parse(responseText);
-        
-        if (errorData.message === "Xodim allaqachon ishlamoqda") {
-          toast.error("Bu student allaqachon faol holatda!");
-          setIsModalOpen(false);
-          await fetchStudents(true);
-        } else {
-          throw new Error(errorData.message || "Ishga qaytarish xatosi!");
-        }
-      }
-    } catch (err: any) {
-      console.error("Xatolik:", err);
-      toast.error(err.message);
-    }
+    setIsModalOpen(false);
   };
 
   // O'CHIRISHNI TASDIQLASH
@@ -386,41 +191,9 @@ export default function StudentsPage() {
     const targetId = selectedStudent.id || selectedStudent._id;
     if (!targetId) return toast.error("Student ID topilmadi!");
 
-    try {
-      const token = getCookie("token");
-
-      const requestBody = {
-        _id: targetId,
-      };
-
-      console.log("O'chirilayotgan ID:", targetId);
-      console.log("Yuborilayotgan body:", requestBody);
-
-      const response = await fetch(`${API_BASE_URL}/student/delete-student`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-      console.log("Server javobi:", data);
-
-      if (!response.ok) {
-        throw new Error(data.message || `Xatolik: ${response.status}`);
-      }
-
-      setStudents(students.filter((s) => (s.id || s._id) !== targetId));
-      setIsModalOpen(false);
-      setSelectedStudent(null);
-
-      toast.success("Muvaffaqiyatli o'chirildi!");
-    } catch (err: any) {
-      console.error("Xatolik:", err);
-      toast.error(err.message || "Xatolik yuz berdi");
-    }
+    deleteStudent.mutate(targetId as string);
+    setIsModalOpen(false);
+    setSelectedStudent(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -436,18 +209,25 @@ export default function StudentsPage() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+        <p className="text-gray-500 dark:text-gray-400">Studentlar yuklanmoqda...</p>
       </div>
     );
   }
 
-  if (error) {
+  if (studentsError) {
     return (
       <div className="text-center text-red-600 dark:text-red-400 p-4">
-        <p>Xatolik: {error}</p>
+        <p>Xatolik: {studentsError.message}</p>
+        <button 
+          onClick={() => refetchStudents()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Qayta urinish
+        </button>
       </div>
     );
   }
@@ -456,7 +236,12 @@ export default function StudentsPage() {
     <div className="max-w-7xl mx-auto">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Studentlar</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Studentlar</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Jami {filteredStudents.length} ta student
+          </p>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <div className="relative flex-1 md:w-64">
@@ -472,7 +257,8 @@ export default function StudentsPage() {
 
           <button
             onClick={handleAddClick}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-black font-medium rounded-lg hover:bg-gray-100 transition-colors text-sm shadow-sm"
+            disabled={isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors text-sm shadow-sm disabled:opacity-50"
           >
             <UserPlus className="w-4 h-4" />
             Qo'shish
@@ -513,94 +299,103 @@ export default function StudentsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredStudents.map((student) => (
-                  <tr
-                    key={student.id || student._id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {student.first_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {student.last_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {student.phone || "—"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {student.groups_count || 0}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full uppercase tracking-wider ${getStatusBadge(student.status)}`}
-                      >
-                        {student.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
-                      <button
-                        onClick={() => setOpenMenuId(openMenuId === (student.id || student._id) ? null : (student.id || student._id))}
-                        className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-
-                      {openMenuId === (student.id || student._id) && (
-                        <div
-                          ref={menuRef}
-                          className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-50"
+                filteredStudents.map((student) => {
+                  const studentId = student.id || student._id;
+                  return (
+                    <tr
+                      key={studentId}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {student.first_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {student.last_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {student.phone || "—"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {student.groups_count || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full uppercase tracking-wider ${getStatusBadge(student.status)}`}
                         >
-                          {student.status === "faol" && (
-                            <>
+                          {student.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                        <button
+                          onClick={() => setOpenMenuId(openMenuId === studentId ? null : studentId)}
+                          className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          disabled={isPending}
+                        >
+                          <MoreHorizontal className="w-5 h-5" />
+                        </button>
+
+                        {openMenuId === studentId && (
+                          <div
+                            ref={menuRef}
+                            className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#111111] border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-50"
+                          >
+                            {student.status === "faol" && (
+                              <>
+                                <button
+                                  onClick={() => handleVacationClick(student)}
+                                  className="w-full text-left px-4 py-2 text-sm text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 flex items-center gap-2"
+                                  disabled={isPending}
+                                >
+                                  <Calendar className="w-4 h-4" />
+                                  Ta'tilga chiqarish
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(student)}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                  disabled={isPending}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  O'chirish
+                                </button>
+                              </>
+                            )}
+
+                            {student.status === "ta'tilda" && (
                               <button
-                                onClick={() => handleVacationClick(student)}
-                                className="w-full text-left px-4 py-2 text-sm text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 flex items-center gap-2"
+                                onClick={() => handleReturnClick(student)}
+                                className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                disabled={isPending}
                               >
-                                <Calendar className="w-4 h-4" />
-                                Ta'tilga chiqarish
+                                <RefreshCw className="w-4 h-4" />
+                                Qaytarish
                               </button>
+                            )}
+
+                            {student.status === "yakunladi" && (
                               <button
                                 onClick={() => handleDeleteClick(student)}
                                 className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                disabled={isPending}
                               >
                                 <Trash2 className="w-4 h-4" />
                                 O'chirish
                               </button>
-                            </>
-                          )}
-
-                          {student.status === "ta'tilda" && (
+                            )}
+                            
                             <button
-                              onClick={() => handleReturnClick(student)}
-                              className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                              onClick={() => handleInfoClick(student)}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                              disabled={isPending}
                             >
-                              <RefreshCw className="w-4 h-4" />
-                              Ishga qaytarish
+                              <Info className="w-4 h-4" />
+                              Info
                             </button>
-                          )}
-
-                          {student.status === "yakunladi" && (
-                            <button
-                              onClick={() => handleDeleteClick(student)}
-                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              O'chirish
-                            </button>
-                          )}
-                          
-                          <button
-                            onClick={() => handleInfoClick(student)}
-                            className="w-full text-left px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
-                          >
-                            <Info className="w-4 h-4" />
-                            Info
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -615,13 +410,14 @@ export default function StudentsPage() {
               <h2 className="text-xl font-semibold">
                 {modalType === "add" && "Yangi student qo'shish"}
                 {modalType === "delete" && "Studentni o'chirish"}
-                {modalType === "return" && "Studentni faollashtirish"}
+                {modalType === "return" && "Studentni qaytarish"}
                 {modalType === "vacation" && "Studentni ta'tilga chiqarish"}
                 {modalType === "info" && "Student ma'lumotlari"}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                disabled={isPending}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -639,6 +435,7 @@ export default function StudentsPage() {
                         onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                         className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         required
+                        disabled={isPending}
                       />
                     </div>
                     <div>
@@ -649,6 +446,7 @@ export default function StudentsPage() {
                         onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                         className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         required
+                        disabled={isPending}
                       />
                     </div>
                   </div>
@@ -662,6 +460,7 @@ export default function StudentsPage() {
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       placeholder="+998901234567"
                       required
+                      disabled={isPending}
                     />
                   </div>
 
@@ -672,6 +471,7 @@ export default function StudentsPage() {
                       onChange={(e) => setForm({ ...form, group_id: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       required
+                      disabled={isPending || groupsLoading}
                     >
                       <option value="">Guruhni tanlang</option>
                       {groups.map((group) => (
@@ -688,6 +488,7 @@ export default function StudentsPage() {
                       value={form.status}
                       onChange={(e) => setForm({ ...form, status: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      disabled={isPending}
                     >
                       <option value="faol">Faol</option>
                       <option value="ta'tilda">Ta'tilda</option>
@@ -707,6 +508,7 @@ export default function StudentsPage() {
                       onChange={(e) => setVacationData({ ...vacationData, start_date: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       required
+                      disabled={isPending}
                     />
                   </div>
                   <div>
@@ -717,6 +519,7 @@ export default function StudentsPage() {
                       onChange={(e) => setVacationData({ ...vacationData, end_date: e.target.value })}
                       className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-[#1a1a1a] focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       required
+                      disabled={isPending}
                     />
                   </div>
                   <div>
@@ -728,6 +531,7 @@ export default function StudentsPage() {
                       rows={3}
                       placeholder="Ta'til sababini kiriting"
                       required
+                      disabled={isPending}
                     />
                   </div>
                 </div>
@@ -776,7 +580,7 @@ export default function StudentsPage() {
                     <span className="font-semibold text-red-500">
                       {selectedStudent?.first_name} {selectedStudent?.last_name}
                     </span>{" "}
-                    {modalType === "delete" ? "ni o'chirmoqchimisiz?" : "ni faollashtirmoqchimisiz?"}
+                    {modalType === "delete" ? "ni o'chirmoqchimisiz?" : "ni qaytarmoqchimisiz?"}
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
                     {modalType === "delete" 
@@ -791,6 +595,7 @@ export default function StudentsPage() {
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all"
+                disabled={isPending}
               >
                 Bekor qilish
               </button>
@@ -806,19 +611,21 @@ export default function StudentsPage() {
                       ? handleReturn
                       : handleVacation
                   }
-                  className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all ${
+                  disabled={isPending}
+                  className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl transition-all flex items-center gap-2 ${
                     modalType === "add"
-                      ? "bg-blue-600 hover:bg-blue-700"
+                      ? "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
                       : modalType === "return"
-                      ? "bg-green-600 hover:bg-green-700"
+                      ? "bg-green-600 hover:bg-green-700 disabled:bg-green-400"
                       : modalType === "vacation"
-                      ? "bg-yellow-600 hover:bg-yellow-700"
-                      : "bg-red-600 hover:bg-red-700"
+                      ? "bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400"
+                      : "bg-red-600 hover:bg-red-700 disabled:bg-red-400"
                   }`}
                 >
+                  {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                   {modalType === "add" && "Qo'shish"}
                   {modalType === "delete" && "O'chirish"}
-                  {modalType === "return" && "Faollashtirish"}
+                  {modalType === "return" && "Qaytarish"}
                   {modalType === "vacation" && "Ta'tilga chiqarish"}
                 </button>
               )}
