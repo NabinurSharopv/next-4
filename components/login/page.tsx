@@ -20,7 +20,6 @@ const Login: React.FC = () => {
   const router = useRouter();
   const loginMutation = useLogin();
 
-  // Mounted tekshiruvi (hydration xatoligi uchun)
   useEffect(() => {
     setMounted(true);
     
